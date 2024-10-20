@@ -1,0 +1,223 @@
+{
+  "Uuid": "f83fb1b2-0ab3-481e-bf6f-1324d111664b",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Link_AR_ST",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [
+    {
+      "Id": "48e9ec93998943b7913e6e03be348b4c",
+      "Name": "File Path",
+      "Type": "string",
+      "Type2": "string",
+      "Value": "Z:\\Mostafa\\Dynamo Script\\Link_AR_ST\\Links_paths.csv",
+      "Description": "Allows you to select a file on the system and returns its file path",
+      "SelectedIndex": 0
+    }
+  ],
+  "Outputs": [
+    {
+      "Id": "cf6a71700bb84888b04d3b5412bee15e",
+      "Name": "Watch",
+      "Type": "unknown",
+      "InitialValue": "",
+      "Description": "Visualizes a node's output"
+    }
+  ],
+  "Nodes": [
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "WatchWidth": 200.0,
+      "WatchHeight": 200.0,
+      "Id": "cf6a71700bb84888b04d3b5412bee15e",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "3747dae5231f49ceb7b56dbb5134f6ba",
+          "Name": "",
+          "Description": "Node to show output from",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "18e779d3d77e4563bb0ebee353bc5087",
+          "Name": "",
+          "Description": "Node output",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualizes a node's output"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.Filename, CoreNodeModels",
+      "Id": "48e9ec93998943b7913e6e03be348b4c",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "9f26eda1522f4e509bb16b82a5b5a746",
+          "Name": "",
+          "Description": "File Path",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows you to select a file on the system and returns its file path",
+      "HintPath": "Z:\\Mostafa\\Dynamo Script\\Link_AR_ST\\Links_paths.csv",
+      "InputValue": "Z:\\Mostafa\\Dynamo Script\\Link_AR_ST\\Links_paths.csv"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nimport csv\r\nimport os  # To extract the file name and path\r\nclr.AddReference(\"RevitServices\")\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nimport Autodesk.Revit.DB as DB\r\n\r\n# Input - CSV file path containing Revit model paths\r\ncsv_file_path = IN[0]\r\n\r\n# Output list for success or failure messages\r\noutput = []\r\n\r\n# List to store Revit model paths from the CSV file\r\nfile_paths = []\r\n\r\n# 1. Read CSV file and extract paths\r\ntry:\r\n    with open(csv_file_path, 'r') as file:\r\n        reader = csv.reader(file)\r\n        for row in reader:\r\n            # Each row in the CSV file is treated as a path\r\n            if row:  # Check if the row is not empty\r\n                file_paths.append(row[0].strip())  # Strip any extra whitespace\r\nexcept Exception as e:\r\n    output.append(f\"Failed to read CSV file: {str(e)}\")\r\n    OUT = output  # Set output and exit early if there's an error\r\n\r\n# If no valid paths are found in the CSV, exit early\r\nif not file_paths:\r\n    output.append(\"No valid paths found in the CSV file.\")\r\n    OUT = output\r\nelse:\r\n    # Get the current document\r\n    doc = DocumentManager.Instance.CurrentDBDocument\r\n\r\n    # Start transaction for linking the models\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n\r\n    # Loop through each file path\r\n    for path in file_paths:\r\n        try:\r\n            # Extract the file name from the path\r\n            file_name = os.path.basename(path)  # Example: \"model_File_name.rvt\"\r\n            \r\n            # Verify if the path is a valid file path (ends with .rvt)\r\n            if not path.endswith(\".rvt\"):\r\n                output.append(f\"{file_name} is not a Revit model.\")\r\n                continue\r\n            \r\n            # Create a ModelPath from the file path\r\n            model_path = DB.ModelPathUtils.ConvertUserVisiblePathToModelPath(path)\r\n            \r\n            # Check if the model is already linked by checking RevitLinkType elements\r\n            already_linked = False\r\n            link_unloaded = False\r\n            link_no_instance = False\r\n            \r\n            # Check for already linked files and status of each link\r\n            for link in DB.FilteredElementCollector(doc).OfClass(DB.RevitLinkType):\r\n                # Get the external file reference\r\n                external_ref = link.GetExternalFileReference()\r\n                if external_ref is not None:\r\n                    linked_model_path = DB.ModelPathUtils.ConvertModelPathToUserVisiblePath(external_ref.GetAbsolutePath()).lower()\r\n                    \r\n                    # Compare the linked path to the current path from CSV (case insensitive)\r\n                    if linked_model_path == path.lower():\r\n                        already_linked = True\r\n\r\n                        # First check: Is the link unloaded?\r\n                        file_status = external_ref.GetLinkedFileStatus()\r\n                        if file_status == DB.LinkedFileStatus.Unloaded:\r\n                            link_unloaded = True\r\n                            output.append(f\"Link: {file_name} is linked but unloaded.\")\r\n                        \r\n                        # Second check: Does the link have no instances in the model?\r\n                        link_instances = DB.FilteredElementCollector(doc).OfClass(DB.RevitLinkInstance).ToElements()\r\n                        instance_exists = any(instance.GetTypeId() == link.Id for instance in link_instances)\r\n                        \r\n                        if not instance_exists:\r\n                            link_no_instance = True\r\n                            output.append(f\"Link: {file_name} is linked but has no instances, Remove it before linking it again.\")\r\n                        \r\n                        break  # No need to keep checking other links if match is found\r\n            \r\n            if already_linked:\r\n                if link_unloaded or link_no_instance:\r\n                    # We have already logged the unloaded and no-instance cases\r\n                    continue\r\n                else:\r\n                    output.append(f\"{file_name} already linked before.\")\r\n                    continue\r\n            \r\n            # Linking the model if not already linked or flagged as unloaded/no instance\r\n            options = DB.RevitLinkOptions(False)  # False means we don't want to link worksets\r\n            link_type = DB.RevitLinkType.Create(doc, model_path, options)\r\n            DB.RevitLinkInstance.Create(doc, link_type.ElementId)\r\n            output.append(f\"{file_name} linked successfully.\")\r\n        \r\n        except Exception as e:\r\n            # Handle specific Revit API errors, especially for \"already linked\" cases\r\n            if \"document already contains a linked model at path\" in str(e):\r\n                output.append(f\"{file_name} already linked before.\")\r\n            else:\r\n                # Catch any other errors during the linking process\r\n                output.append(f\"Failed to link {file_name}: {str(e)}\")\r\n            continue\r\n\r\n    # Commit the transaction\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n\r\n    # 2. Write the log to a txt file with a fixed name \"Link_log.txt\"\r\n    try:\r\n        # Get the directory of the CSV file\r\n        csv_directory = os.path.dirname(csv_file_path)\r\n        # Create a log file name \"Link_log.txt\"\r\n        log_file_name = \"Link_log.txt\"\r\n        log_file_path = os.path.join(csv_directory, log_file_name)\r\n        \r\n        # Write the output log to the file\r\n        with open(log_file_path, 'w') as log_file:\r\n            for message in output:\r\n                log_file.write(message + \"\\n\")\r\n        \r\n        # Notify that the log file has been created\r\n        output.append(f\"Log file created: {log_file_path}\")\r\n    \r\n    except Exception as e:\r\n        output.append(f\"Failed to write log file: {str(e)}\")\r\n\r\n# Output the results in Dynamo and also create the log file\r\nOUT = output\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "e0a66268e6a24d3fb254ad7750659dc5",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "3fef59d85c14492b82d380dd0cd076b7",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "aef32c0df59e4ef1894f55dc38a7ca3b",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "9f26eda1522f4e509bb16b82a5b5a746",
+      "End": "3fef59d85c14492b82d380dd0cd076b7",
+      "Id": "f18f1da9ff164a31a40a12f82fc130c3",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "aef32c0df59e4ef1894f55dc38a7ca3b",
+      "End": "3747dae5231f49ceb7b56dbb5134f6ba",
+      "Id": "3c9fc4987f5a4d95a20c20861f2e70a6",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [
+    {
+      "Name": "Links_paths.csv",
+      "ReferenceType": "External",
+      "Nodes": [
+        "48e9ec93998943b7913e6e03be348b4c"
+      ]
+    }
+  ],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.18",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "6.0",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.18.1.5096",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "cf6a71700bb84888b04d3b5412bee15e",
+        "Name": "Watch",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": true,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 1415.3225765201794,
+        "Y": 84.679132009850548
+      },
+      {
+        "Id": "48e9ec93998943b7913e6e03be348b4c",
+        "Name": "File Path",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 430.45824791816062,
+        "Y": 101.9400832483534
+      },
+      {
+        "Id": "e0a66268e6a24d3fb254ad7750659dc5",
+        "Name": "Linking Node",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 1040.8815233258001,
+        "Y": 104.59810652815636
+      }
+    ],
+    "Annotations": [],
+    "X": -235.54180523635762,
+    "Y": 166.56622209612465,
+    "Zoom": 0.92665217524436738
+  }
+}
