@@ -21,4 +21,4 @@ After the script finishes running, a log file will be generated in the same fold
 Which links were successfully linked.
 If a link was already linked previously.
 If a link was previously linked but is in an Unloaded state.
-If a link was previously linked, but there are no instances of the link found in the current model (meaning someone may have deleted the link instead or remove it within the Revit model).
+If a link was previously linked, but there are no instances of the link found in the current model (meaning someone may have deleted the link instead of removing it within the Revit model).
