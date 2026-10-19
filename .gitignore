@@ -1,0 +1,17 @@
+
+# Organized add-in delivery
+**/bin/
+**/obj/
+.vs/
+**/*.log
+**/*.pdb
+node_modules/
+packages/
+**/*.rvt
+**/*.rfa
+**/*.ifc
+**/*.dwg
+**/*.pfx
+**/*.pem
+**/*.key
+.env
